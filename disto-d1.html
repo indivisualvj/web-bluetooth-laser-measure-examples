@@ -1,0 +1,119 @@
+<html lang="en" xmlns="http://www.w3.org/1999/html">
+<head>
+    <title>Leica Disto D1</title>
+    <script>
+        class LaserScanner {
+            static measureCommand = 'g';
+            static laserOnCommand = 'o';
+            static laserOffCommand = 'p';
+            static clearCommand = 'p';
+            commandCharacteristic;
+            distanceCharacteristic;
+            device;
+            server;
+            SERVICE_UUID = '3ab10100-f831-4395-b29d-570977d5bf94';
+            DISTANCE_UUID = '3ab10101-f831-4395-b29d-570977d5bf94';
+            COMMAND_UUID = '3ab10109-f831-4395-b29d-570977d5bf94';
+            namePrefix = 'Leica';
+            
+            discover() {
+                return navigator.bluetooth.requestDevice({
+                    filters: [
+                        {namePrefix: this.namePrefix},
+                        {services: [this.SERVICE_UUID]}
+                    ]
+                })
+                    .then((device) => {
+                        this.device = device;
+                        return this.device.gatt.connect();
+                    })
+                    .then((server) => {
+                        this.server = server;
+                        return this.server.getPrimaryService(this.SERVICE_UUID);
+                    })
+                    .then((service) => {
+                        return service.getCharacteristic(this.DISTANCE_UUID).then((characteristic) => {
+                            this.distanceCharacteristic = characteristic;
+                            return characteristic.service.getCharacteristic(this.COMMAND_UUID).then((characteristic) => {
+                                this.commandCharacteristic = characteristic;
+                                return true;
+                            }).catch((error) => {
+                                return true;
+                            });
+                        });
+                    });
+            }
+
+            laserOn() {
+                return this.commandCharacteristic.writeValue(this.str2ab(LaserScanner.laserOnCommand));
+            }
+
+            laserOff() {
+                return this.commandCharacteristic.writeValue(this.str2ab(LaserScanner.laserOffCommand));
+            }
+
+            clear() {
+                return this.commandCharacteristic.writeValue(this.str2ab(LaserScanner.clearCommand));
+            }
+
+            measure() {
+                return this.commandCharacteristic.writeValue(this.str2ab(LaserScanner.measureCommand));
+            }
+
+            str2ab(str) {
+                let buf = new ArrayBuffer(str.length * 2); // 2 bytes for each char
+                let bufView = new Uint16Array(buf);
+                for (let i = 0, strLen = str.length; i < strLen; i++) {
+                    bufView[i] = str.charCodeAt(i);
+                }
+                return buf;
+            }
+
+            getDistanceCharacteristic() {
+                return this.distanceCharacteristic;
+            }
+        }
+    </script>
+</head>
+<body>
+    <button id="connect">Connect</button>
+    <button id="listen">Start listening</button>
+    <button id="measure">Measure</button>
+    <button id="on">Laser On</button>
+    <button id="off">Laser Off</button>
+    <pre id="log">
+
+    </pre>
+
+<script>
+    const log = document.getElementById('log');
+    const scanner = new LaserScanner();
+    document.getElementById('connect').addEventListener('click', () => {
+        scanner.discover().then(() => {
+            log.innerText = log.innerText.concat('\n' + 'connected');
+        }).catch((e) => {
+            log.innerText = log.innerText.concat('\n' + e.message);
+        });
+    });
+    document.getElementById('listen').addEventListener('click', () => {
+        scanner.getDistanceCharacteristic().startNotifications();
+        scanner.getDistanceCharacteristic().addEventListener('characteristicvaluechanged', (event) => {
+            const value = event.target.value.getFloat32(0, true) * 1000;
+            if (value > 0) {
+                log.innerText = log.innerText.concat('\n reading: ' + value.toFixed(0));
+            }
+        });
+        log.innerText = log.innerText.concat('\n' + 'listening');
+    });
+    document.getElementById('on').addEventListener('click', () => {
+        scanner.laserOn();
+    });
+    document.getElementById('off').addEventListener('click', () => {
+        scanner.laserOff();
+    });
+    document.getElementById('measure').addEventListener('click', () => {
+        scanner.measure();
+    });
+</script>
+</body>
+</html>
