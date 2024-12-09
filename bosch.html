@@ -126,7 +126,6 @@
 <body>
     <button id="connect">Connect</button>
     <button id="listen">Start listening</button>
-    <button id="measure">Measure</button>
     <button id="on">Laser On</button>
     <button id="off">Laser Off</button>
     <pre id="log">
@@ -169,9 +168,7 @@
     document.getElementById('off').addEventListener('click', () => {
         scanner.laserOff();
     });
-    document.getElementById('measure').addEventListener('click', () => {
-        scanner.measure();
-    });
+
 </script>
 </body>
 </html>
