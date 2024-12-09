@@ -1,0 +1,171 @@
+<html lang="en" xmlns="http://www.w3.org/1999/html">
+<head>
+    <title>Bosch</title>
+    <script>
+        class LaserScanner {
+            measureCommand = new Uint8Array([0xc0, 0x40, 0x01, 0x00, 0xfa]);
+            laserOnCommand = new Uint8Array([0xc0, 0x41, 0x00, 0x96]);
+            laserOffCommand = new Uint8Array([0xc0, 0x42, 0x00, 0x1e]);
+            autoSyncCommand = new Uint8Array([0xc0, 0x55, 0x02, 0x01, 0x00, 0x1a]);
+            SERVICE_UUID = '00005301-0000-0041-5253-534f46540000';
+            DISTANCE_UUID = '00004301-0000-0041-5253-534f46540000';
+            BOSCH_LAMENESS_FACTOR = 250;
+            commandCharacteristic;
+            distanceCharacteristic;
+            device;
+            server;
+            namePrefix = 'Bosch';
+            
+            discover() {
+                const filters = [
+                    { namePrefix: this.namePrefix },
+                    { services: [this.SERVICE_UUID] },
+                ];
+
+                return navigator.bluetooth.requestDevice({
+                    filters: filters,
+                    optionalServices: [this.DISTANCE_UUID]
+                }).then((device) => {
+                    this.device = device;
+                    return new Promise((resolve, reject) => {
+                        setTimeout(() => {
+                            device.gatt.connect().then(resolve).catch(reject);
+                        }, this.BOSCH_LAMENESS_FACTOR);
+                    });
+                }).then((server) => {
+                    this.server = server;
+                    return new Promise((resolve, reject) => {
+                        setTimeout(() => {
+                            server.getPrimaryService(this.SERVICE_UUID).then(resolve).catch(reject);
+                        }, this.BOSCH_LAMENESS_FACTOR);
+                    });
+                }).then((service) => {
+                    return service.getCharacteristic(this.DISTANCE_UUID).then((characteristic) => {
+                        this.distanceCharacteristic = characteristic;
+                    });
+                });
+            }
+
+            laserOn() {
+                return this.commandCharacteristic.writeValue(this.str2ab(LaserScanner.laserOnCommand));
+            }
+
+            laserOff() {
+                return this.commandCharacteristic.writeValue(this.str2ab(LaserScanner.laserOffCommand));
+            }
+
+            clear() {
+                return this.commandCharacteristic.writeValue(this.str2ab(LaserScanner.clearCommand));
+            }
+
+            measure() {
+                return this.commandCharacteristic.writeValue(this.str2ab(LaserScanner.measureCommand));
+            }
+
+            readValueFromEvent(event) {
+                let message = event.target.value;
+                try {
+                    let hexString = this.dataViewToString(message);
+                    let value = -1;
+
+                    if (hexString === "000082") {
+                        return -1;
+
+                    } else if (hexString.length === 40 && hexString.startsWith("c055")) {
+                        value = this.parseExchangeDataContainer(message, hexString);
+
+                    } else if (hexString.length === 14 && hexString.startsWith("0004")) {
+                        return -1;
+                    } else {
+                        return -1;
+                    }
+
+                    return value * 1000;
+
+                } catch (e) {
+                    console.error(e);
+                }
+
+                return -1;
+            }
+
+            dataViewToString(dataView) {
+                let hexString = "";
+                for (let i = 0; i < dataView.byteLength; i++) {
+                    let byte = dataView.getUint8(i);
+                    hexString += byte.toString(16).padStart(2, "0");
+                }
+
+                return hexString;
+            }
+
+            parseExchangeDataContainer(message, hexString) {
+                let measurementDataView = new DataView(new ArrayBuffer(4));
+
+                for (let i = 7; i < 11; i++) {
+                    let byte = message.getUint8(i);
+                    measurementDataView.setUint8(i - 7, byte);
+                }
+
+                let measurement = measurementDataView.getFloat32(0, true);
+
+                return parseFloat(measurement.toFixed(3));
+            }
+
+            getDistanceCharacteristic() {
+                return this.distanceCharacteristic;
+            }
+        }
+    </script>
+</head>
+<body>
+    <button id="connect">Connect</button>
+    <button id="listen">Start listening</button>
+    <button id="measure">Measure</button>
+    <button id="on">Laser On</button>
+    <button id="off">Laser Off</button>
+    <pre id="log">
+
+    </pre>
+
+<script>
+    const log = document.getElementById('log');
+    const scanner = new LaserScanner();
+    document.getElementById('connect').addEventListener('click', () => {
+        scanner.discover().then(() => {
+            log.innerText = log.innerText.concat('\n' + 'connected');
+        }).catch((e) => {
+            log.innerText = log.innerText.concat('\n' + e.message);
+        });
+    });
+    document.getElementById('listen').addEventListener('click', () => {
+        scanner.getDistanceCharacteristic().startNotifications()
+            .then(() => {
+                return new Promise((resolve, reject) => {
+                    setTimeout(() => {
+                        scanner.getDistanceCharacteristic().writeValue(this.autoSyncCommand).then(() => {
+                            resolve(scanner.getDistanceCharacteristic());
+                        }).catch(reject)
+                    }, scanner.BOSCH_LAMENESS_FACTOR);
+                });
+            });
+        scanner.getDistanceCharacteristic().addEventListener('characteristicvaluechanged', (event) => {
+            const value = scanner.readValueFromEvent(event);
+            if (value > 0) {
+                log.innerText = log.innerText.concat('\n reading: ' + value.toFixed(0));
+            }
+        });
+        log.innerText = log.innerText.concat('\n' + 'listening');
+    });
+    document.getElementById('on').addEventListener('click', () => {
+        scanner.laserOn();
+    });
+    document.getElementById('off').addEventListener('click', () => {
+        scanner.laserOff();
+    });
+    document.getElementById('measure').addEventListener('click', () => {
+        scanner.measure();
+    });
+</script>
+</body>
+</html>
