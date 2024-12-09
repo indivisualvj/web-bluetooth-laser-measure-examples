@@ -10,7 +10,6 @@
             SERVICE_UUID = '00005301-0000-0041-5253-534f46540000';
             DISTANCE_UUID = '00004301-0000-0041-5253-534f46540000';
             BOSCH_LAMENESS_FACTOR = 250;
-            commandCharacteristic;
             distanceCharacteristic;
             device;
             server;
@@ -52,9 +51,7 @@
                         clearTimeout(this.laserOnTimeout);
                     }
                     this.laserOnTimeout = setTimeout(() => {
-                        if (this.isConnected()) {
-                            this.laserOn();
-                        }
+                        this.laserOn();
                     }, 10000);
                 });
             }
@@ -80,7 +77,7 @@
                         return -1;
 
                     } else if (hexString.length === 40 && hexString.startsWith("c055")) {
-                        value = this.parseExchangeDataContainer(message, hexString);
+                        value = this.parseExchangeDataContainer(message);
 
                     } else if (hexString.length === 14 && hexString.startsWith("0004")) {
                         return -1;
@@ -107,7 +104,7 @@
                 return hexString;
             }
 
-            parseExchangeDataContainer(message, hexString) {
+            parseExchangeDataContainer(message) {
                 let measurementDataView = new DataView(new ArrayBuffer(4));
 
                 for (let i = 7; i < 11; i++) {
@@ -141,7 +138,7 @@
     const scanner = new LaserScanner();
     document.getElementById('connect').addEventListener('click', () => {
         scanner.discover().then(() => {
-            log.innerText = log.innerText.concat('\n' + 'connected');
+            log.innerText = log.innerText.concat('\n' + scanner.device.name + ' connected');
         }).catch((e) => {
             log.innerText = log.innerText.concat('\n' + e.message);
         });
@@ -156,14 +153,15 @@
                         }).catch(reject)
                     }, scanner.BOSCH_LAMENESS_FACTOR);
                 });
+            }).then(() => {
+            scanner.getDistanceCharacteristic().addEventListener('characteristicvaluechanged', (event) => {
+                const value = scanner.readValueFromEvent(event);
+                if (value > 0) {
+                    log.innerText = log.innerText.concat('\n reading: ' + value.toFixed(0));
+                }
             });
-        scanner.getDistanceCharacteristic().addEventListener('characteristicvaluechanged', (event) => {
-            const value = scanner.readValueFromEvent(event);
-            if (value > 0) {
-                log.innerText = log.innerText.concat('\n reading: ' + value.toFixed(0));
-            }
+            log.innerText = log.innerText.concat('\n' + 'listening');
         });
-        log.innerText = log.innerText.concat('\n' + 'listening');
     });
     document.getElementById('on').addEventListener('click', () => {
         scanner.laserOn();

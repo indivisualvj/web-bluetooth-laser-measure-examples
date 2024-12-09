@@ -3,10 +3,10 @@
     <title>Leica Disto D1</title>
     <script>
         class LaserScanner {
-            static measureCommand = 'g';
-            static laserOnCommand = 'o';
-            static laserOffCommand = 'p';
-            static clearCommand = 'p';
+            measureCommand = 'g';
+            laserOnCommand = 'o';
+            laserOffCommand = 'p';
+            clearCommand = 'p';
             commandCharacteristic;
             distanceCharacteristic;
             device;
@@ -45,19 +45,19 @@
             }
 
             laserOn() {
-                return this.commandCharacteristic.writeValue(this.str2ab(LaserScanner.laserOnCommand));
+                return this.commandCharacteristic.writeValue(this.str2ab(this.laserOnCommand));
             }
 
             laserOff() {
-                return this.commandCharacteristic.writeValue(this.str2ab(LaserScanner.laserOffCommand));
+                return this.commandCharacteristic.writeValue(this.str2ab(this.laserOffCommand));
             }
 
             clear() {
-                return this.commandCharacteristic.writeValue(this.str2ab(LaserScanner.clearCommand));
+                return this.commandCharacteristic.writeValue(this.str2ab(this.clearCommand));
             }
 
             measure() {
-                return this.commandCharacteristic.writeValue(this.str2ab(LaserScanner.measureCommand));
+                return this.commandCharacteristic.writeValue(this.str2ab(this.measureCommand));
             }
 
             str2ab(str) {
@@ -90,7 +90,7 @@
     const scanner = new LaserScanner();
     document.getElementById('connect').addEventListener('click', () => {
         scanner.discover().then(() => {
-            log.innerText = log.innerText.concat('\n' + 'connected');
+            log.innerText = log.innerText.concat('\n' + scanner.device.name + ' connected');
         }).catch((e) => {
             log.innerText = log.innerText.concat('\n' + e.message);
         });
