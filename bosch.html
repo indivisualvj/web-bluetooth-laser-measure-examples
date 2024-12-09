@@ -47,19 +47,27 @@
             }
 
             laserOn() {
-                return this.commandCharacteristic.writeValue(this.str2ab(LaserScanner.laserOnCommand));
+                return this.distanceCharacteristic.writeValue(this.laserOnCommand).then(() => {
+                    if (this.laserOnTimeout) {
+                        clearTimeout(this.laserOnTimeout);
+                    }
+                    this.laserOnTimeout = setTimeout(() => {
+                        if (this.isConnected()) {
+                            this.laserOn();
+                        }
+                    }, 10000);
+                });
             }
 
             laserOff() {
-                return this.commandCharacteristic.writeValue(this.str2ab(LaserScanner.laserOffCommand));
-            }
-
-            clear() {
-                return this.commandCharacteristic.writeValue(this.str2ab(LaserScanner.clearCommand));
+                if (this.laserOnTimeout) {
+                    clearTimeout(this.laserOnTimeout);
+                }
+                return this.distanceCharacteristic.writeValue(this.laserOffCommand);
             }
 
             measure() {
-                return this.commandCharacteristic.writeValue(this.str2ab(LaserScanner.measureCommand));
+                return this.distanceCharacteristic.writeValue(this.measureCommand);
             }
 
             readValueFromEvent(event) {
@@ -143,7 +151,7 @@
             .then(() => {
                 return new Promise((resolve, reject) => {
                     setTimeout(() => {
-                        scanner.getDistanceCharacteristic().writeValue(this.autoSyncCommand).then(() => {
+                        scanner.getDistanceCharacteristic().writeValue(scanner.autoSyncCommand).then(() => {
                             resolve(scanner.getDistanceCharacteristic());
                         }).catch(reject)
                     }, scanner.BOSCH_LAMENESS_FACTOR);
