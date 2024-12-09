@@ -154,14 +154,14 @@
                     }, scanner.BOSCH_LAMENESS_FACTOR);
                 });
             }).then(() => {
-            scanner.getDistanceCharacteristic().addEventListener('characteristicvaluechanged', (event) => {
-                const value = scanner.readValueFromEvent(event);
-                if (value > 0) {
-                    log.innerText = log.innerText.concat('\n reading: ' + value.toFixed(0));
-                }
+                scanner.getDistanceCharacteristic().addEventListener('characteristicvaluechanged', (event) => {
+                    const value = scanner.readValueFromEvent(event);
+                    if (value > 0) {
+                        log.innerText = log.innerText.concat('\n reading: ' + value.toFixed(0));
+                    }
+                });
+                log.innerText = log.innerText.concat('\n' + 'listening');
             });
-            log.innerText = log.innerText.concat('\n' + 'listening');
-        });
     });
     document.getElementById('on').addEventListener('click', () => {
         scanner.laserOn();
