@@ -1,0 +1,158 @@
+<html lang="en" xmlns="http://www.w3.org/1999/html">
+<head>
+    <title>Leica Disto X3</title>
+    <script>
+        class LaserScanner {
+            // Sequences
+            //
+            // - Connect:
+            //   Enable indications for handles 0x1b, 0x1e, 0x21, 0x24, 0x27, 0x2c, 0x2f
+            // - Measurement:
+            //   Send commands ['raiseEvent 300\r\n', 'raiseEvent 10\r\n', 'raiseEvent 10\r\n']
+            // - Laser on
+            //   Send commands ['raiseEvent 300\r\n', 'raiseEvent 10\r\n']
+            // - Laser off
+            //   Send commands ['raiseEvent 12\r\n', 'raiseEvent 12\r\n']
+            laserOnCommand = 'raiseEvent 10\r\n';
+            laserOffCommand = 'raiseEvent 12\r\n';
+            clearCommand = 'raiseEvent 300\r\n';
+            commandCharacteristic;
+            distanceCharacteristic;
+            device;
+            server;
+
+            SERVICE_UUID  = '3ab10100-f831-4395-b29d-570977d5bf94';
+            NAME_UUID     = '3ab1010c-f831-4395-b29d-570977d5bf94';
+            DISTANCE_UUID = '3ab1010d-f831-4395-b29d-570977d5bf94'; // Handle 0x1b
+            CHARACT1_UUID = '3ab1010f-f831-4395-b29d-570977d5bf94'; // Handle 0x1e
+            CHARACT2_UUID = '3ab10110-f831-4395-b29d-570977d5bf94'; // Handle 0x21
+            CHARACT3_UUID = '3ab10111-f831-4395-b29d-570977d5bf94'; // Handle 0x24
+            CHARACT4_UUID = '3ab10112-f831-4395-b29d-570977d5bf94'; // Handle 0x27
+            COMMAND_UUID  = '3ab10120-f831-4395-b29d-570977d5bf94';
+            CHARACT5_UUID = '3ab10121-f831-4395-b29d-570977d5bf94'; // Handle 0x2c
+            CHARACT6_UUID = '3ab10122-f831-4395-b29d-570977d5bf94'; // Handle 0x2f
+
+            namePrefix = 'Leica';
+
+            discover() {
+                return navigator.bluetooth.requestDevice({
+                    filters: [
+                        {namePrefix: this.namePrefix},
+                        {services: [this.SERVICE_UUID]}
+                    ]
+                }).then((device) => {
+                    this.device = device;
+                    return this.device.gatt.connect();
+                }).then((server) => {
+                    this.server = server;
+                    return this.server.getPrimaryService(this.SERVICE_UUID);
+                }).then((service) => {
+                    // initialize characteristics and enable indications
+                    var fut = service.getCharacteristic(this.DISTANCE_UUID).then((characteristic) => {
+                        this.distanceCharacteristic = characteristic;
+                        characteristic.startNotifications() // handle 0x1b
+                        return true;
+                    }).then((rc) => {
+                        if (!rc) return rc;
+                        console.log("Get command characteristic")
+                        return service.getCharacteristic(this.COMMAND_UUID).then((characteristic) => {
+                            this.commandCharacteristic = characteristic;
+                            // NOTE: indication not supported for this characteristics
+                            return true;
+                        })
+                    })
+
+                    // NOTE: Characteristics notification for the following handles need to be enabled:
+                    // 0x1e, 0x21, 0x24, 0x27, 0x2c, 0x2f, 0x29 (0x29 seems to be optional)
+                    let notif_characteristicts = [this.CHARACT1_UUID, this.CHARACT2_UUID, this.CHARACT3_UUID,
+                                                  this.CHARACT4_UUID, this.CHARACT5_UUID, this.CHARACT6_UUID]
+                    notif_characteristicts.forEach(characteristics_uuid => {
+                        fut = fut.then((rc) => {
+                            return service.getCharacteristic(characteristics_uuid).then((characteristic) => {
+                                characteristic.startNotifications()
+                                return true;
+                            })
+                        })
+                    });
+
+                    return fut
+                })
+            }
+
+            readValueFromEvent(event) {
+                // The first four bytes of the 20-byte blob encode the 
+                // distance [m] as little-endian float.
+                return event.target.value.getFloat32(0, true) * 1000;
+            }
+
+            laserOn() {
+                return this.commandCharacteristic.writeValue(this.str2ab(this.laserOnCommand));
+            }
+
+            laserOff() {
+                return this.commandCharacteristic.writeValue(this.str2ab(this.laserOffCommand));
+            }
+
+            clear() {
+                return this.commandCharacteristic.writeValue(this.str2ab(this.clearCommand));
+            }
+
+            measure() {
+                return this.commandCharacteristic.writeValue(this.str2ab(this.clearCommand))
+                    .then(() => this.laserOn())
+                    .then(() => this.laserOn())
+            }
+
+            str2ab(str) {
+                let enc = new TextEncoder()
+                return enc.encode(str)
+            }
+
+            getDistanceCharacteristic() {
+                return this.distanceCharacteristic;
+            }
+        }
+    </script>
+</head>
+<body>
+    <button id="connect">Connect</button>
+    <button id="listen">Start listening</button>
+    <button id="measure">Measure</button>
+    <button id="on">Laser On</button>
+    <button id="off">Laser Off</button>
+    <pre id="log">
+
+    </pre>
+
+<script>
+    const log = document.getElementById('log');
+    const scanner = new LaserScanner();
+    document.getElementById('connect').addEventListener('click', () => {
+        scanner.discover().then(() => {
+            log.innerText = log.innerText.concat('\n' + scanner.device.name + ' connected');
+        }).catch((e) => {
+            log.innerText = log.innerText.concat('\n' + e.message);
+        });
+    });
+    document.getElementById('listen').addEventListener('click', () => {
+        scanner.getDistanceCharacteristic().startNotifications();
+        scanner.getDistanceCharacteristic().addEventListener('characteristicvaluechanged', (event) => {
+            const value = scanner.readValueFromEvent(event);
+            if (value > 0) {
+                log.innerText = log.innerText.concat('\n reading: ' + value.toFixed(0));
+            }
+        });
+        log.innerText = log.innerText.concat('\n' + 'listening');
+    });
+    document.getElementById('on').addEventListener('click', () => {
+        scanner.laserOn();
+    });
+    document.getElementById('off').addEventListener('click', () => {
+        scanner.laserOff();
+    });
+    document.getElementById('measure').addEventListener('click', () => {
+        scanner.measure();
+    });
+</script>
+</body>
+</html>
