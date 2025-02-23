@@ -44,6 +44,10 @@
                     });
             }
 
+            readValueFromEvent(event) {
+                return event.target.value.getFloat32(0, true) * 1000;
+            }
+
             laserOn() {
                 return this.commandCharacteristic.writeValue(this.str2ab(this.laserOnCommand));
             }
@@ -98,7 +102,7 @@
     document.getElementById('listen').addEventListener('click', () => {
         scanner.getDistanceCharacteristic().startNotifications();
         scanner.getDistanceCharacteristic().addEventListener('characteristicvaluechanged', (event) => {
-            const value = event.target.value.getFloat32(0, true) * 1000;
+            const value = scanner.readValueFromEvent(event);
             if (value > 0) {
                 log.innerText = log.innerText.concat('\n reading: ' + value.toFixed(0));
             }
