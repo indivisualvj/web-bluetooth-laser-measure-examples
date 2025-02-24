@@ -13,9 +13,9 @@
             //   Send commands ['raiseEvent 300\r\n', 'raiseEvent 10\r\n']
             // - Laser off
             //   Send commands ['raiseEvent 12\r\n', 'raiseEvent 12\r\n']
-            laserOnCommand = 'raiseEvent 10\r\n';
-            laserOffCommand = 'raiseEvent 12\r\n';
-            clearCommand = 'raiseEvent 300\r\n';
+            buttonOnCommandData = 'raiseEvent 10\r\n';
+            buttonOffCommandData = 'raiseEvent 12\r\n';
+            clearCommandData = 'raiseEvent 300\r\n';
             commandCharacteristic;
             distanceCharacteristic;
             device;
@@ -85,22 +85,28 @@
                 return event.target.value.getFloat32(0, true) * 1000;
             }
 
+            buttonOnCommand() {
+                return this.commandCharacteristic.writeValue(this.str2ab(this.buttonOnCommandData));
+            }
+
+            buttonOffCommand() {
+                return this.commandCharacteristic.writeValue(this.str2ab(this.buttonOffCommandData));
+            }
+
+            clearCommand() {
+                return this.commandCharacteristic.writeValue(this.str2ab(this.clearCommandData));
+            }
+
             laserOn() {
-                return this.commandCharacteristic.writeValue(this.str2ab(this.laserOnCommand));
+                return this.clearCommand().then(() => this.buttonOnCommand())
             }
 
             laserOff() {
-                return this.commandCharacteristic.writeValue(this.str2ab(this.laserOffCommand));
-            }
-
-            clear() {
-                return this.commandCharacteristic.writeValue(this.str2ab(this.clearCommand));
+                return this.buttonOffCommand().then(() => this.buttonOffCommand())
             }
 
             measure() {
-                return this.commandCharacteristic.writeValue(this.str2ab(this.clearCommand))
-                    .then(() => this.laserOn())
-                    .then(() => this.laserOn())
+                return this.clearCommand().then(() => this.buttonOnCommand()).then(() => this.buttonOnCommand())
             }
 
             str2ab(str) {
