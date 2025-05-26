@@ -15,33 +15,18 @@
             DISTANCE_UUID = '3ab10101-f831-4395-b29d-570977d5bf94';
             COMMAND_UUID = '3ab10109-f831-4395-b29d-570977d5bf94';
             namePrefix = 'Leica';
-            
-            discover() {
-                return navigator.bluetooth.requestDevice({
+
+            async discover() {
+                this.device = await navigator.bluetooth.requestDevice({
                     filters: [
                         {namePrefix: this.namePrefix},
                         {services: [this.SERVICE_UUID]}
                     ]
-                })
-                    .then((device) => {
-                        this.device = device;
-                        return this.device.gatt.connect();
-                    })
-                    .then((server) => {
-                        this.server = server;
-                        return this.server.getPrimaryService(this.SERVICE_UUID);
-                    })
-                    .then((service) => {
-                        return service.getCharacteristic(this.DISTANCE_UUID).then((characteristic) => {
-                            this.distanceCharacteristic = characteristic;
-                            return characteristic.service.getCharacteristic(this.COMMAND_UUID).then((characteristic) => {
-                                this.commandCharacteristic = characteristic;
-                                return true;
-                            }).catch((error) => {
-                                return true;
-                            });
-                        });
-                    });
+                });
+                this.server = await this.device.gatt.connect();
+                this.service = await this.server.getPrimaryService(this.SERVICE_UUID);
+                this.distanceCharacteristic = await this.service.getCharacteristic(this.DISTANCE_UUID);
+                this.commandCharacteristic = await this.service.getCharacteristic(this.COMMAND_UUID);
             }
 
             readValueFromEvent(event) {
